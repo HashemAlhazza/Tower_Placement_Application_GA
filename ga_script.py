@@ -1171,6 +1171,12 @@ def crop_data_to_bbox(data, south, north, west, east):
     row_min_raw, col_min_raw = lonlat_to_rowcol_raw(west, north)
     row_max_raw, col_max_raw = lonlat_to_rowcol_raw(east, south)
 
+    print(f"Transform: {transform}")
+    print(f"Raster size: height={data['height']}, width={data['width']}")
+    print(f"row_min_raw={row_min_raw:.2f}, row_max_raw={row_max_raw:.2f}")
+    print(f"col_min_raw={col_min_raw:.2f}, col_max_raw={col_max_raw:.2f}")
+    print(f"Input bbox: south={south}, north={north}, west={west}, east={east}")
+
     # Detect selections completely outside the raster before clipping destroys the info
     completely_outside = (
         row_max_raw < 0
@@ -1186,7 +1192,7 @@ def crop_data_to_bbox(data, south, north, west, east):
     col_min = int(np.clip(round(col_min_raw), 0, data["width"] - 1))
     col_max = int(np.clip(round(col_max_raw), 0, data["width"] - 1))
 
-    if row_max - row_min < 10 or col_max - col_min < 10:
+    if row_max - row_min < 3 or col_max - col_min < 3:
         return None
 
     pop_crop = data["pop"][row_min:row_max, col_min:col_max]

@@ -195,57 +195,6 @@
         #map-link:hover {
             background: #3a4556;
         }
-
-        #size-selector {
-            margin-bottom: 14px;
-        }
-
-        #size-selector span {
-            display: block;
-            font-size: 13px;
-            color: #c4ccd6;
-            margin-bottom: 6px;
-        }
-
-        .size-btn {
-            padding: 8px 12px;
-            margin-right: 6px;
-            border: 1px solid #3a4556;
-            background: #2a3342;
-            color: #f0f2f5;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .size-btn:hover {
-            background: #3a4556;
-        }
-
-        .size-btn.active {
-            background: #3b82f6;
-            border-color: #3b82f6;
-            color: white;
-        }
-
-        #random-btn {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 14px;
-            border: none;
-            border-radius: 6px;
-            background: #64748b;
-            color: white;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.15s ease;
-        }
-
-        #random-btn:hover {
-            background: #475569;
-        }
     </style>
 </head>
 
@@ -256,22 +205,10 @@
 
         <div id="panel">
             <h1>Tower Placement Optimizer</h1>
-            <div class="subtitle">Draw a box on the map within the trained region, set your parameters, and run the
-                model.</div>
+            <div class="subtitle">Draw a box on the map within the trained region and run the model.</div>
 
             <div id="bbox-readout">No region selected yet. Use the rectangle tool (top-left of the map) to draw a box.
             </div>
-
-            <div id="size-selector">
-                <span>Random region size:</span>
-                <button class="size-btn active" data-deg="0.45" data-km="25×25" data-area="≈ 625 km²">Small <small>≈ 625
-                        km²</small></button>
-                <button class="size-btn" data-deg="0.90" data-km="50×50" data-area="≈ 2 500 km²">Medium <small>≈ 2 500
-                        km²</small></button>
-                <button class="size-btn" data-deg="1.80" data-km="100×100" data-area="≈ 10 000 km²">Large <small>≈ 10
-                        000 km²</small></button>
-            </div>
-            <button id="random-btn">🎲 Pick random region</button>
 
             <button id="run-btn" disabled>Run optimization</button>
 
@@ -364,49 +301,6 @@
 
         const towerLayer = new L.LayerGroup();
         map.addLayer(towerLayer);
-
-        // --- Random Region ---
-        const EXTENT = { south: 22.0, north: 31.66, west: 24.69, east: 36.89 };
-        let selectedDeg = 0.45; // default: Small
-
-        // Size button toggle
-        document.querySelectorAll('.size-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                selectedDeg = parseFloat(this.dataset.deg);
-            });
-        });
-
-        // Random pick button
-        document.getElementById('random-btn').addEventListener('click', function () {
-            const half = selectedDeg / 2;
-            // Shrink the valid center range so the box never spills outside the raster extent
-            const minLat = EXTENT.south + half;
-            const maxLat = EXTENT.north - half;
-            const minLon = EXTENT.west + half;
-            const maxLon = EXTENT.east - half;
-            // Pick a random center within that safe range
-            const centerLat = minLat + Math.random() * (maxLat - minLat);
-            const centerLon = minLon + Math.random() * (maxLon - minLon);
-            // Build the bounding box from the center
-            const south = centerLat - half;
-            const north = centerLat + half;
-            const west = centerLon - half;
-            const east = centerLon + half;
-            // Remove any previously drawn rectangle and draw the new one
-            drawnItems.clearLayers();
-            const bounds = [[south, west], [north, east]];
-            const rect = L.rectangle(bounds, { color: '#3388ff', weight: 2 });
-            drawnItems.addLayer(rect);
-            map.fitBounds(bounds, { padding: [40, 40] });
-            // Update the shared state your run button already reads from
-            currentBounds = rect.getBounds();
-            const sw = currentBounds.getSouthWest();
-            const ne = currentBounds.getNorthEast();
-            bboxReadout.textContent = `Selected: ${sw.lat.toFixed(3)}°N, ${sw.lng.toFixed(3)}°E → ${ne.lat.toFixed(3)}°N, ${ne.lng.toFixed(3)}°E`;
-            runBtn.disabled = false;
-        });
 
         function describeBounds(bounds) {
             const sw = bounds.getSouthWest();

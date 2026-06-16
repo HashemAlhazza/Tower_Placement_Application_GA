@@ -92,6 +92,7 @@ def optimize():
         cropped_data["height"],
         cropped_data["width"],
     )
+    
     final_xy = chrom_to_pixel_xy(
         best_chrom, cropped_data["height"], cropped_data["width"]
     )
