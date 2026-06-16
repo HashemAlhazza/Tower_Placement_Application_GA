@@ -4,6 +4,7 @@ import uuid
 import numpy as np
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
+import glob
 
 # ----------------------------
 # We import everything from your SAC script.
@@ -137,6 +138,8 @@ def optimize():
     # A unique filename per run so multiple runs don't overwrite each other.
     run_id = str(uuid.uuid4())[:8]
     map_path = os.path.join(OUTPUT_DIR, f"map_{run_id}.html")
+    for f in glob.glob("static/results/*.html"):
+        os.remove(f)
     generate_folium_map(final_lonlat, cropped_data, map_path)
 
     # --- Return everything to the browser as JSON ---

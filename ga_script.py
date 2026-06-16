@@ -32,8 +32,8 @@ TRAIN_DOWNSAMPLE = 2  # downsampled grid used during GA fitness evaluation
 # ----------------------------
 # GA hyper-parameters
 # ----------------------------
-N_POP = 60  # number of layouts (chromosomes) per generation
-N_GENERATIONS = 300  # total generations
+N_POP = 40  # number of layouts (chromosomes) per generation
+N_GENERATIONS = 100  # total generations
 ELITE_SIZE = 4  # top-N layouts copied unchanged to next generation
 TOURNAMENT_K = 5  # tournament size for parent selection
 CROSSOVER_RATE = 0.85  # probability a pair of parents performs crossover
