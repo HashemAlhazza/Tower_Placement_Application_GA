@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tower Placement Optimizer</title>
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+    <!-- Leaflet.draw (rectangle selection tool) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+
+        #panel {
+            width: 340px;
+            flex-shrink: 0;
+            background: #1f2733;
+            color: #f0f2f5;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.25);
+        }
+
+        #panel h1 {
+            font-size: 18px;
+            margin: 0 0 4px 0;
+        }
+
+        #panel .subtitle {
+            font-size: 12px;
+            color: #9aa5b1;
+            margin-bottom: 18px;
+        }
+
+        .field {
+            margin-bottom: 14px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 13px;
+            color: #c4ccd6;
+            margin-bottom: 4px;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #3a4556;
+            background: #2a3342;
+            color: #f0f2f5;
+            font-size: 14px;
+        }
+
+        #bbox-readout {
+            font-size: 12px;
+            color: #9aa5b1;
+            background: #2a3342;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 14px;
+            line-height: 1.5;
+        }
+
+        #run-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            background: #3b82f6;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        #run-btn:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        #run-btn:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 14px;
+            font-size: 13px;
+            min-height: 18px;
+        }
+
+        #status.loading {
+            color: #fbbf24;
+        }
+
+        #status.error {
+            color: #f87171;
+        }
+
+        #status.success {
+            color: #4ade80;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #4b5563;
+            border-top-color: #fbbf24;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #results {
+            margin-top: 20px;
+            display: none;
+        }
+
+        #results.visible {
+            display: block;
+        }
+
+        #results h2 {
+            font-size: 15px;
+            margin: 0 0 10px 0;
+            border-bottom: 1px solid #3a4556;
+            padding-bottom: 6px;
+        }
+
+        .kpi-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            padding: 4px 0;
+            border-bottom: 1px solid #2a3342;
+        }
+
+        .kpi-label {
+            color: #9aa5b1;
+        }
+
+        .kpi-value {
+            font-weight: 600;
+        }
+
+        #map-link {
+            display: inline-block;
+            margin-top: 14px;
+            padding: 9px 14px;
+            background: #2a3342;
+            border: 1px solid #3a4556;
+            border-radius: 6px;
+            color: #f0f2f5;
+            text-decoration: none;
+            font-size: 13px;
+            text-align: center;
+            width: 100%;
+        }
+
+        #map-link:hover {
+            background: #3a4556;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+        <div id="map"></div>
+
+        <div id="panel">
+            <h1>Tower Placement Optimizer</h1>
+            <div class="subtitle">Draw a box on the map within the trained region, set your parameters, and run the
+                model.</div>
+
+            <div id="bbox-readout">No region selected yet. Use the rectangle tool (top-left of the map) to draw a box.
+            </div>
+
+            <button id="run-btn" disabled>Run optimization</button>
+
+            <div id="status"></div>
+
+            <div id="results">
+                <h2>Results</h2>
+                <div id="kpi-list"></div>
+                <a id="map-link" href="#" target="_blank">Open full map view</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ------------------------------------------------------------
+        // TODO: Replace these with the actual lat/lon bounds of your
+        // trained raster (elevation_100m.tif / population_100m.tif).
+        // This is only used to draw the dashed boundary box and to
+        // center the map on startup — it does NOT get sent to the
+        // backend, so it being slightly off won't break anything,
+        // but it should roughly match so judges draw inside it.
+        //
+        // You can get these bounds quickly with rasterio:
+        //   import rasterio
+        //   with rasterio.open("data/elevation_100m.tif") as src:
+        //       print(src.bounds)          # gives easting/northing (UTM)
+        //       print(rasterio.warp.transform_bounds(src.crs, "EPSG:4326", *src.bounds))
+        // The second print gives (west, south, east, north) in lat/lon.
+        // ------------------------------------------------------------
+        // Actual bounds of egy_pop_2025_CN_1km_R2025A_UA_v1.tif (EPSG:4326)
+        const TRAINED_REGION = {
+            south: 22.000000248,
+            north: 31.666666876,
+            west: 24.699999181200027,
+            east: 36.899999132400026,
+        };
+
+        // ------------------------------------------------------------
+        // Map setup
+        // ------------------------------------------------------------
+        const map = L.map('map').setView(
+            [(TRAINED_REGION.south + TRAINED_REGION.north) / 2,
+            (TRAINED_REGION.west + TRAINED_REGION.east) / 2],
+            6
+        );
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 18,
+        }).addTo(map);
+
+        // Dashed rectangle showing where the model is valid
+        L.rectangle(
+            [[TRAINED_REGION.south, TRAINED_REGION.west],
+            [TRAINED_REGION.north, TRAINED_REGION.east]],
+            { color: '#3b82f6', weight: 2, dashArray: '6 6', fill: false }
+        ).addTo(map).bindTooltip("Trained region", { permanent: false });
+
+        // ------------------------------------------------------------
+        // Draw control — single rectangle selection
+        // ------------------------------------------------------------
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polygon: false,
+                polyline: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                rectangle: {
+                    shapeOptions: { color: '#22c55e', weight: 2 }
+                }
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+
+        let currentBounds = null;
+        const runBtn = document.getElementById('run-btn');
+        const bboxReadout = document.getElementById('bbox-readout');
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+        const kpiListEl = document.getElementById('kpi-list');
+        const mapLinkEl = document.getElementById('map-link');
+
+        const towerLayer = new L.LayerGroup();
+        map.addLayer(towerLayer);
+
+        function describeBounds(bounds) {
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            return `Selected region:<br>` +
+                `South: ${sw.lat.toFixed(5)}, North: ${ne.lat.toFixed(5)}<br>` +
+                `West: ${sw.lng.toFixed(5)}, East: ${ne.lng.toFixed(5)}`;
+        }
+
+        map.on(L.Draw.Event.CREATED, function (e) {
+            // Only allow one rectangle at a time
+            drawnItems.clearLayers();
+            drawnItems.addLayer(e.layer);
+            currentBounds = e.layer.getBounds();
+            bboxReadout.innerHTML = describeBounds(currentBounds);
+            runBtn.disabled = false;
+            setStatus('', '');
+        });
+
+        map.on(L.Draw.Event.EDITED, function (e) {
+            e.layers.eachLayer(function (layer) {
+                currentBounds = layer.getBounds();
+                bboxReadout.innerHTML = describeBounds(currentBounds);
+            });
+        });
+
+        map.on(L.Draw.Event.DELETED, function () {
+            currentBounds = null;
+            runBtn.disabled = true;
+            bboxReadout.innerHTML = 'No region selected yet. Use the rectangle tool (top-left of the map) to draw a box.';
+        });
+
+        // ------------------------------------------------------------
+        // Status helper
+        // ------------------------------------------------------------
+        function setStatus(message, type) {
+            statusEl.className = type || '';
+            if (type === 'loading') {
+                statusEl.innerHTML = '<span class="spinner"></span>' + message;
+            } else {
+                statusEl.textContent = message;
+            }
+        }
+
+        // ------------------------------------------------------------
+        // KPI label formatting — maps backend keys to readable labels
+        // ------------------------------------------------------------
+        const KPI_LABELS = {
+            n_towers: 'Towers placed',
+            population_served: 'Population served',
+            coverage_pct: 'Population coverage',
+            geo_coverage: 'Geographic coverage',
+            zone_coverage: 'Zone coverage',
+            mean_sinr: 'Mean SINR (served)',
+            budget_spent: 'Budget spent',
+            budget_remaining: 'Budget remaining',
+        };
+
+        // ------------------------------------------------------------
+        // Run button
+        // ------------------------------------------------------------
+        runBtn.addEventListener('click', async function () {
+            if (!currentBounds) return;
+
+            const sw = currentBounds.getSouthWest();
+            const ne = currentBounds.getNorthEast();
+
+            const payload = {
+                south: sw.lat,
+                north: ne.lat,
+                west: sw.lng,
+                east: ne.lng,
+            };
+
+            runBtn.disabled = true;
+            resultsEl.classList.remove('visible');
+            towerLayer.clearLayers();
+            setStatus('Running optimization \u2014 this can take 5\u201310 seconds...', 'loading');
+
+            try {
+                const response = await fetch('/optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    setStatus(data.error || 'Something went wrong on the server.', 'error');
+                    runBtn.disabled = false;
+                    return;
+                }
+
+                // Plot towers on the main map
+                data.towers.forEach(function (t, i) {
+                    L.circleMarker([t.lat, t.lon], {
+                        radius: 8,
+                        color: '#22c55e',
+                        fillColor: '#22c55e',
+                        fillOpacity: 0.85,
+                        weight: 2,
+                    })
+                        .bindPopup('Tower ' + (i + 1) + '<br>' + t.lat.toFixed(5) + ', ' + t.lon.toFixed(5))
+                        .addTo(towerLayer);
+                });
+
+                // Populate KPI panel
+                kpiListEl.innerHTML = '';
+                Object.entries(data.kpis).forEach(function ([key, value]) {
+                    const label = KPI_LABELS[key] || key;
+                    const row = document.createElement('div');
+                    row.className = 'kpi-row';
+                    row.innerHTML = '<span class="kpi-label">' + label + '</span>' +
+                        '<span class="kpi-value">' + value + '</span>';
+                    kpiListEl.appendChild(row);
+                });
+
+                mapLinkEl.href = data.map_url;
+                resultsEl.classList.add('visible');
+                setStatus('Done. ' + data.kpis.n_towers + ' towers placed.', 'success');
+
+            } catch (err) {
+                setStatus('Request failed: ' + err.message, 'error');
+            } finally {
+                runBtn.disabled = false;
+            }
+        });
+    </script>
+
+</body>
+
+</html>
